@@ -1,5 +1,6 @@
-let messagesMap = new Map();
 let isExporting = false;
+let exportedMessages = [];
+let seenIds = new Set();
 
 // Attempt to find the main scrollable container of the active chat
 function getScrollContainer() {
@@ -19,10 +20,12 @@ function getScrollContainer() {
 function extractMessages() {
   const msgElements = document.querySelectorAll('div[data-id]');
   
+  let newMessages = [];
+
   msgElements.forEach(el => {
     const id = el.getAttribute('data-id');
     // Skip if already extracted
-    if (messagesMap.has(id)) return;
+    if (seenIds.has(id)) return;
 
     let text = '';
     let timestamp = '';
@@ -53,11 +56,17 @@ function extractMessages() {
     }
 
     if (text) {
-      // Create a sortable key out of data-id to maintain chronological order
-      // We will sort these keys later before saving
-      messagesMap.set(id, { id, timestamp, sender, text });
+      newMessages.push({ id, timestamp, sender, text });
+      seenIds.add(id);
     }
   });
+
+  // Since we are scrolling up, the new messages found in the DOM are OLDER than the ones we found previously.
+  // The newMessages themselves are in chronological order (top to bottom of the current screen).
+  // Therefore, prepending newMessages to our master list perfectly maintains chronological order!
+  if (newMessages.length > 0) {
+    exportedMessages = [...newMessages, ...exportedMessages];
+  }
 }
 
 // Start the export process
@@ -66,15 +75,23 @@ async function startExport() {
   const scroller = getScrollContainer();
   if (!scroller) {
     alert('Could not find chat container. Please open a chat first.');
+    
+    // Reset buttons
+    const startBtn = document.getElementById('wa-start-btn');
+    const stopBtn = document.getElementById('wa-stop-btn');
+    if (startBtn && stopBtn) {
+       startBtn.disabled = false;
+       stopBtn.disabled = true;
+       startBtn.innerText = 'Start Export';
+    }
     return;
   }
   
   isExporting = true;
-  const btn = document.getElementById('wa-exporter-btn');
-  btn.innerText = 'Stop & Save';
   
   // Reset for new export
-  messagesMap.clear();
+  exportedMessages = [];
+  seenIds.clear();
 
   let stuckCount = 0;
 
@@ -110,41 +127,28 @@ async function startExport() {
   
   saveMessages();
   
-  btn.innerText = 'Export Chat';
+  // Reset UI
   isExporting = false;
+  const startBtn = document.getElementById('wa-start-btn');
+  const stopBtn = document.getElementById('wa-stop-btn');
+  if (startBtn && stopBtn) {
+     startBtn.disabled = false;
+     stopBtn.disabled = true;
+     startBtn.innerText = 'Start Export';
+  }
 }
 
 // Generate the text file and trigger download
 function saveMessages() {
-  if (messagesMap.size === 0) {
+  if (exportedMessages.length === 0) {
     alert('No messages found to export.');
     return;
   }
-
-  // Convert to array
-  const msgs = Array.from(messagesMap.values());
   
   // Generate text content
   let content = "--- WhatsApp Chat Export ---\n\n";
   
-  // Although Maps preserve insertion order, we scroll UP, meaning we prepend older messages.
-  // The simplest way to handle sorting without complex timestamp parsing is to rely on WhatsApp's data-id format if possible,
-  // or simply sort by timestamp (which can be tricky due to localized dates).
-  // For simplicity, we just output them. If they are in reverse order chunks, we might need to sort them.
-  // Actually, WhatsApp loads chunks, so if we just collect them, we can sort them by extracting a unix timestamp from data-id if it exists.
-  // E.g., false_1684305849@c.us_...
-  
-  msgs.sort((a, b) => {
-    // Attempt to extract timestamp from data-id
-    const timeA = extractTimeFromId(a.id);
-    const timeB = extractTimeFromId(b.id);
-    if (timeA && timeB) {
-        return timeA - timeB;
-    }
-    return 0; // Fallback
-  });
-
-  msgs.forEach(m => {
+  exportedMessages.forEach(m => {
      if (m.sender && m.timestamp) {
          content += `[${m.timestamp}] ${m.sender}: ${m.text}\n`;
      } else {
@@ -170,48 +174,47 @@ function saveMessages() {
   URL.revokeObjectURL(url);
 }
 
-// Helper to extract timestamp from data-id if present
-function extractTimeFromId(id) {
-  // Typical id: true_1234567890123@c.us_ABCDEF
-  const parts = id.split('_');
-  for (let part of parts) {
-    if (part.includes('@')) {
-       const timeStr = part.split('@')[0];
-       if (/^\d+$/.test(timeStr)) {
-          return parseInt(timeStr, 10);
-       }
-    }
-  }
-  return null;
-}
-
-// Inject the button into WhatsApp UI
-function injectButton() {
-  if (document.getElementById('wa-exporter-btn')) return;
+// Inject floating UI
+function injectUI() {
+  if (document.getElementById('wa-exporter-container')) return;
   
-  // Inject into the main chat header
-  const header = document.querySelector('#main header'); 
-  if (!header) return;
+  const container = document.createElement('div');
+  container.id = 'wa-exporter-container';
 
-  const btn = document.createElement('button');
-  btn.id = 'wa-exporter-btn';
-  btn.innerText = 'Export Chat';
-  btn.onclick = () => {
-    if (isExporting) {
-      isExporting = false; // Stop early
-    } else {
+  const title = document.createElement('div');
+  title.id = 'wa-exporter-title';
+  title.innerText = 'WA Exporter';
+
+  const startBtn = document.createElement('button');
+  startBtn.id = 'wa-start-btn';
+  startBtn.className = 'wa-btn';
+  startBtn.innerText = 'Start Export';
+  
+  const stopBtn = document.createElement('button');
+  stopBtn.id = 'wa-stop-btn';
+  stopBtn.className = 'wa-btn wa-stop';
+  stopBtn.innerText = 'Stop & Save';
+  stopBtn.disabled = true;
+
+  startBtn.onclick = () => {
+    if (!isExporting) {
+      startBtn.disabled = true;
+      stopBtn.disabled = false;
+      startBtn.innerText = 'Exporting...';
       startExport();
     }
   };
-  
-  // Insert before the search/menu icons
-  const actionsDiv = header.querySelector('div:last-child');
-  if (actionsDiv) {
-    actionsDiv.prepend(btn);
-  } else {
-    header.appendChild(btn);
-  }
+
+  stopBtn.onclick = () => {
+    if (isExporting) {
+      isExporting = false; // The loop in startExport will break
+    }
+  };
+
+  container.appendChild(title);
+  container.appendChild(startBtn);
+  container.appendChild(stopBtn);
+  document.body.appendChild(container);
 }
 
-// Check periodically to inject button (since WhatsApp is a Single Page App)
-setInterval(injectButton, 2000);
+setInterval(injectUI, 2000);
