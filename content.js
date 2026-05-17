@@ -174,16 +174,51 @@ function saveMessages() {
   URL.revokeObjectURL(url);
 }
 
+let uiClosed = false;
+
 // Inject floating UI
 function injectUI() {
-  if (document.getElementById('wa-exporter-container')) return;
+  if (uiClosed || document.getElementById('wa-exporter-wrapper')) return;
   
-  const container = document.createElement('div');
-  container.id = 'wa-exporter-container';
+  const wrapper = document.createElement('div');
+  wrapper.id = 'wa-exporter-wrapper';
+
+  // --- FAB (Floating Action Button) ---
+  const fab = document.createElement('button');
+  fab.id = 'wa-exporter-fab';
+  fab.title = 'WA Exporter';
+  // Standard download SVG icon
+  fab.innerHTML = `<svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>`;
+  
+  // --- Main Panel ---
+  const panel = document.createElement('div');
+  panel.id = 'wa-exporter-panel';
+
+  const header = document.createElement('div');
+  header.id = 'wa-exporter-header';
 
   const title = document.createElement('div');
   title.id = 'wa-exporter-title';
   title.innerText = 'WA Exporter';
+
+  const controls = document.createElement('div');
+  controls.className = 'wa-window-controls';
+
+  const minimizeBtn = document.createElement('button');
+  minimizeBtn.className = 'wa-control-btn';
+  minimizeBtn.innerText = '−';
+  minimizeBtn.title = 'Minimize';
+
+  const closeBtn = document.createElement('button');
+  closeBtn.className = 'wa-control-btn';
+  closeBtn.innerText = '×';
+  closeBtn.title = 'Close';
+
+  controls.appendChild(minimizeBtn);
+  controls.appendChild(closeBtn);
+  
+  header.appendChild(title);
+  header.appendChild(controls);
 
   const startBtn = document.createElement('button');
   startBtn.id = 'wa-start-btn';
@@ -195,6 +230,23 @@ function injectUI() {
   stopBtn.className = 'wa-btn wa-stop';
   stopBtn.innerText = 'Stop & Save';
   stopBtn.disabled = true;
+
+  // Interactions
+  fab.onclick = () => {
+    fab.style.display = 'none';
+    panel.style.display = 'flex';
+  };
+
+  minimizeBtn.onclick = () => {
+    panel.style.display = 'none';
+    fab.style.display = 'flex';
+  };
+
+  closeBtn.onclick = () => {
+    uiClosed = true;
+    wrapper.remove();
+    if (isExporting) isExporting = false; // Stop early if running
+  };
 
   startBtn.onclick = () => {
     if (!isExporting) {
@@ -211,10 +263,13 @@ function injectUI() {
     }
   };
 
-  container.appendChild(title);
-  container.appendChild(startBtn);
-  container.appendChild(stopBtn);
-  document.body.appendChild(container);
+  panel.appendChild(header);
+  panel.appendChild(startBtn);
+  panel.appendChild(stopBtn);
+  
+  wrapper.appendChild(fab);
+  wrapper.appendChild(panel);
+  document.body.appendChild(wrapper);
 }
 
 setInterval(injectUI, 2000);
