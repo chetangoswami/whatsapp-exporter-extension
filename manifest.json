@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "WhatsApp Chat Exporter",
+  "version": "1.0",
+  "description": "Export complete WhatsApp Web chats, bypassing the lazy-loading issue.",
+  "permissions": [
+    "activeTab",
+    "scripting"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["*://web.whatsapp.com/*"],
+      "css": ["styles.css"],
+      "js": ["content.js"]
+    }
+  ],
+  "action": {
+    "default_title": "WhatsApp Chat Exporter"
+  }
+}

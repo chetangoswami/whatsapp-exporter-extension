@@ -1,0 +1,27 @@
+#wa-exporter-btn {
+  margin-left: 10px;
+  background-color: #00a884;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  font-size: 14px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+  transition: all 0.2s ease;
+  z-index: 9999;
+}
+
+#wa-exporter-btn:hover {
+  background-color: #008f6f;
+  transform: translateY(-1px);
+}
+
+#wa-exporter-btn:disabled {
+  background-color: #cccccc;
+  color: #666666;
+  cursor: not-allowed;
+  transform: none;
+}
